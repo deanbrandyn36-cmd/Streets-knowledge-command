@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>STREETS | Know Your Streets</title>
 
-  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="styles.css?v=5" />
 
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
@@ -104,7 +104,7 @@
           Officers
         </button>
 
-        <button class="quick-btn" data-view="perimeterView">
+        <button class="quick-btn wide-btn" data-view="perimeterView">
           <span>◇</span>
           Perimeter
         </button>
@@ -210,10 +210,24 @@
       <button class="back-btn" data-view="homeView">← Back</button>
 
       <section class="panel">
-        <div class="section-title">4-Point Perimeter</div>
+        <div class="section-title">Create Perimeter</div>
 
         <label>Incident Area</label>
-        <input id="perimeterLocation" type="text" placeholder="Incident location" />
+        <input id="perimeterLocation" type="text" placeholder="Incident location / area" />
+
+        <label>Zone</label>
+        <select id="perimeterZone">
+          <option value="Zone 1">Zone 1</option>
+          <option value="Zone 2">Zone 2</option>
+          <option value="Zone 3">Zone 3</option>
+          <option value="Zone 4">Zone 4</option>
+          <option value="Zone 5">Zone 5</option>
+          <option value="Zone 6">Zone 6</option>
+          <option value="Zone 7">Zone 7</option>
+          <option value="Zone 8">Zone 8</option>
+          <option value="Zone 9">Zone 9</option>
+          <option value="Zone 10">Zone 10</option>
+        </select>
 
         <label>Time Delay</label>
         <select id="perimeterDelay">
@@ -244,16 +258,16 @@
           <option value="Vehicle">Vehicle</option>
         </select>
 
-        <button id="generatePerimeterBtn" class="primary-btn full-btn">Generate Perimeter</button>
+        <button id="generatePerimeterBtn" class="primary-btn full-btn">Generate New Perimeter</button>
       </section>
 
       <section class="panel">
-        <div class="section-title">Perimeter Points</div>
-        <div id="perimeterPoints" class="feed-list"></div>
+        <div class="section-title">Active Perimeters</div>
+        <div id="activePerimeters" class="feed-list"></div>
       </section>
     </main>
   </div>
 
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
