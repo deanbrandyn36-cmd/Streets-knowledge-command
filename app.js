@@ -39,20 +39,32 @@ const zones = [
 document.addEventListener("DOMContentLoaded", init);
 
 function init() {
-  loadState();
-  bindEvents();
-  renderZoneToggles();
-  renderAll();
+  try {
+    loadState();
+    bindEvents();
+    renderZoneToggles();
+    renderAll();
 
-  if (state.user) {
-    showApp();
-    initMap(state.user.token);
+    if (state.user && state.user.token) {
+      showApp();
+      initMap(state.user.token);
+    }
+
+    console.log("STREETS app loaded");
+  } catch (error) {
+    console.error("Startup error:", error);
+    alert("Startup error: " + error.message);
   }
 }
 
 function bindEvents() {
-  byId("loginBtn").addEventListener("click", login);
-  byId("logoutBtn").addEventListener("click", logout);
+  safeClick("loginBtn", login);
+  safeClick("logoutBtn", logout);
+  safeClick("savePersonalIntelBtn", () => addIntel(false));
+  safeClick("shareZoneIntelBtn", () => addIntel(true));
+  safeClick("sendMessageBtn", sendMessage);
+  safeClick("recordVoiceBtn", toggleVoiceRecording);
+  safeClick("generatePerimeterBtn", generatePerimeter);
 
   document.querySelectorAll("[data-view]").forEach(btn => {
     btn.addEventListener("click", () => showView(btn.dataset.view));
@@ -65,12 +77,13 @@ function bindEvents() {
       btn.classList.add("active");
     });
   });
+}
 
-  byId("savePersonalIntelBtn").addEventListener("click", () => addIntel(false));
-  byId("shareZoneIntelBtn").addEventListener("click", () => addIntel(true));
-  byId("sendMessageBtn").addEventListener("click", sendMessage);
-  byId("recordVoiceBtn").addEventListener("click", toggleVoiceRecording);
-  byId("generatePerimeterBtn").addEventListener("click", generatePerimeter);
+function safeClick(id, handler) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener("click", handler);
+  }
 }
 
 function login() {
@@ -85,7 +98,15 @@ function login() {
     return;
   }
 
-  state.user = { name, badge, zone, role, token, status: "Active" };
+  state.user = {
+    name,
+    badge,
+    zone,
+    role,
+    token,
+    status: "Active"
+  };
+
   addNotification(`Officer active: ${name} assigned to ${zone}`);
   saveState();
 
@@ -113,38 +134,51 @@ function showApp() {
 function showView(viewId) {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   byId(viewId).classList.add("active");
-  if (map) setTimeout(() => map.resize(), 100);
+
+  if (map) {
+    setTimeout(() => map.resize(), 100);
+  }
 }
 
 function initMap(token) {
-  if (typeof mapboxgl === "undefined") {
-    alert("Mapbox failed to load.");
-    return;
+  try {
+    if (typeof mapboxgl === "undefined") {
+      alert("Mapbox failed to load.");
+      return;
+    }
+
+    mapboxgl.accessToken = token;
+
+    if (map) {
+      map.remove();
+      map = null;
+    }
+
+    map = new mapboxgl.Map({
+      container: "map",
+      style: "mapbox://styles/mapbox/dark-v11",
+      center: [-80.305, 26.020],
+      zoom: 10.7,
+      pitch: 38,
+      bearing: -8,
+      maxBounds: cityBounds
+    });
+
+    map.addControl(new mapboxgl.NavigationControl());
+
+    map.on("load", () => {
+      drawZones();
+      refreshMap();
+    });
+  } catch (error) {
+    console.error(error);
+    alert("Map failed to load. Check your Mapbox token.");
   }
-
-  mapboxgl.accessToken = token;
-
-  if (map) map.remove();
-
-  map = new mapboxgl.Map({
-    container: "map",
-    style: "mapbox://styles/mapbox/dark-v11",
-    center: [-80.305, 26.020],
-    zoom: 10.7,
-    pitch: 38,
-    bearing: -8,
-    maxBounds: cityBounds
-  });
-
-  map.addControl(new mapboxgl.NavigationControl());
-
-  map.on("load", () => {
-    drawZones();
-    refreshMap();
-  });
 }
 
 function drawZones() {
+  if (!map) return;
+
   const featureCollection = {
     type: "FeatureCollection",
     features: zones.map(z => ({
@@ -155,7 +189,10 @@ function drawZones() {
   };
 
   if (!map.getSource("zones")) {
-    map.addSource("zones", { type: "geojson", data: featureCollection });
+    map.addSource("zones", {
+      type: "geojson",
+      data: featureCollection
+    });
 
     map.addLayer({
       id: "zone-fill",
@@ -181,12 +218,18 @@ function drawZones() {
 
 function renderZoneToggles() {
   const container = byId("zoneToggles");
+  if (!container) return;
+
   container.innerHTML = "";
 
   zones.forEach(z => {
     const btn = document.createElement("button");
     btn.className = "zone-toggle";
-    if (state.activeZones.includes(z.id)) btn.classList.add("active");
+
+    if (state.activeZones.includes(z.id)) {
+      btn.classList.add("active");
+    }
+
     btn.textContent = z.id.replace("Zone ", "Z");
 
     btn.addEventListener("click", () => {
@@ -247,7 +290,9 @@ function deleteIntel(id) {
   const item = state.intel.find(i => i.id === id);
   state.intel = state.intel.filter(i => i.id !== id);
 
-  if (item) addNotification(`Intel deleted from ${item.zone}`);
+  if (item) {
+    addNotification(`Intel deleted from ${item.zone}`);
+  }
 
   saveState();
   renderAll();
@@ -286,6 +331,8 @@ function sendMessage() {
 async function toggleVoiceRecording() {
   const btn = byId("recordVoiceBtn");
   const playback = byId("voicePlayback");
+
+  if (!btn || !playback) return;
 
   if (!mediaRecorder) {
     try {
@@ -374,9 +421,16 @@ function calculateRadius(delay, method) {
 
 function buildFourPointPerimeter(centerLng, centerLat, radius, direction) {
   const baseAngles = [0, 90, 180, 270];
+
   const offsets = {
-    N: 0, NE: 45, E: 90, SE: 135,
-    S: 180, SW: 225, W: 270, NW: 315,
+    N: 0,
+    NE: 45,
+    E: 90,
+    SE: 135,
+    S: 180,
+    SW: 225,
+    W: 270,
+    NW: 315,
     Unknown: 0
   };
 
@@ -384,6 +438,7 @@ function buildFourPointPerimeter(centerLng, centerLat, radius, direction) {
 
   return baseAngles.map(angle => {
     const deg = (angle + offset) * Math.PI / 180;
+
     return {
       lng: centerLng + radius * Math.cos(deg),
       lat: centerLat + radius * Math.sin(deg)
@@ -423,17 +478,21 @@ function refreshMap() {
     });
 
   state.perimeterPoints.forEach(point => {
-    const statusClass =
-      point.status === "covered" ? "perimeter-green" :
-      point.status === "enroute" ? "perimeter-yellow" :
-      "perimeter-red";
+    let statusClass = "perimeter-red";
 
-    addMapMarker(
-      point.lng,
-      point.lat,
-      allPointsCovered() ? `${statusClass} flash-alert` : statusClass,
-      `${point.label}: ${point.status}`
-    );
+    if (point.status === "covered") {
+      statusClass = "perimeter-green";
+    }
+
+    if (point.status === "enroute") {
+      statusClass = "perimeter-yellow";
+    }
+
+    if (allPointsCovered()) {
+      statusClass += " flash-alert";
+    }
+
+    addMapMarker(point.lng, point.lat, statusClass, `${point.label}: ${point.status}`);
   });
 }
 
@@ -471,6 +530,8 @@ function renderAll() {
 
 function renderNotificationBar() {
   const bar = byId("notificationBar");
+  if (!bar) return;
+
   if (!state.notifications.length) {
     bar.textContent = "No active notifications.";
     return;
@@ -481,6 +542,8 @@ function renderNotificationBar() {
 
 function renderHomeFeed() {
   const container = byId("homeFeed");
+  if (!container) return;
+
   const updates = [
     ...state.notifications.slice(0, 5).map(n => ({
       title: "Notification",
@@ -510,6 +573,8 @@ function renderHomeFeed() {
 
 function renderIntelFeed() {
   const container = byId("intelFeed");
+  if (!container) return;
+
   const items = state.intel
     .filter(item => item.shared)
     .filter(item => state.activeZones.includes(item.zone));
@@ -535,6 +600,7 @@ function renderIntelFeed() {
 
 function renderMessages() {
   const container = byId("messageFeed");
+  if (!container) return;
 
   if (!state.messages.length) {
     container.innerHTML = `<div class="feed-card">No messages.</div>`;
@@ -552,6 +618,7 @@ function renderMessages() {
 
 function renderPerimeterPoints() {
   const container = byId("perimeterPoints");
+  if (!container) return;
 
   if (!state.perimeterPoints.length) {
     container.innerHTML = `<div class="feed-card">No active perimeter.</div>`;
@@ -621,7 +688,15 @@ function loadState() {
   if (!raw) return;
 
   try {
-    state = { ...state, ...JSON.parse(raw) };
+    const loaded = JSON.parse(raw);
+    state = { ...state, ...loaded };
+
+    if (!Array.isArray(state.activeZones) || state.activeZones.length === 0) {
+      state.activeZones = [
+        "Zone 1", "Zone 2", "Zone 3", "Zone 4", "Zone 5",
+        "Zone 6", "Zone 7", "Zone 8", "Zone 9", "Zone 10"
+      ];
+    }
   } catch {
     localStorage.removeItem(STORAGE_KEY);
   }
