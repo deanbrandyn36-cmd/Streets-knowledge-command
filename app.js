@@ -1,11 +1,11 @@
-const STORAGE_KEY = "streetsPatrolModeV4";
+const STORAGE_KEY = "streetsPatrolModeV5";
 
 let state = {
   user: null,
   intel: [],
   messages: [],
   officers: [],
-  perimeterPoints: [],
+  perimeters: [],
   notifications: [],
   selectedIntelType: "Vehicle",
   activeZones: [
@@ -20,21 +20,23 @@ let mediaRecorder = null;
 let audioChunks = [];
 
 const cityBounds = [
-  [-80.492, 25.978],
-  [-80.181, 26.061]
+  [-80.492, 25.958],
+  [-80.181, 26.041]
 ];
 
+const miramarCenter = [-80.315, 25.990];
+
 const zones = [
-  { id: "Zone 1", center: [-80.2175, 26.020], coords: [[[-80.221,25.978],[-80.214,25.978],[-80.214,26.061],[-80.221,26.061],[-80.221,25.978]]] },
-  { id: "Zone 2", center: [-80.2635, 26.040], coords: [[[-80.306,26.018],[-80.221,26.018],[-80.221,26.061],[-80.306,26.061],[-80.306,26.018]]] },
-  { id: "Zone 3", center: [-80.2635, 25.997], coords: [[[-80.306,25.978],[-80.221,25.978],[-80.221,26.018],[-80.306,26.018],[-80.306,25.978]]] },
-  { id: "Zone 4", center: [-80.2775, 26.020], coords: [[[-80.306,25.978],[-80.249,25.978],[-80.249,26.061],[-80.306,26.061],[-80.306,25.978]]] },
-  { id: "Zone 5", center: [-80.2400, 26.020], coords: [[[-80.249,25.978],[-80.231,25.978],[-80.231,26.061],[-80.249,26.061],[-80.249,25.978]]] },
-  { id: "Zone 6", center: [-80.2195, 26.020], coords: [[[-80.231,25.978],[-80.208,25.978],[-80.208,26.061],[-80.231,26.061],[-80.231,25.978]]] },
-  { id: "Zone 7", center: [-80.1995, 26.020], coords: [[[-80.208,25.978],[-80.191,25.978],[-80.191,26.061],[-80.208,26.061],[-80.208,25.978]]] },
-  { id: "Zone 8", center: [-80.2480, 26.020], coords: [[[-80.305,25.978],[-80.191,25.978],[-80.191,26.061],[-80.305,26.061],[-80.305,25.978]]] },
-  { id: "Zone 9", center: [-80.3730, 26.042], coords: [[[-80.441,26.023],[-80.305,26.023],[-80.305,26.061],[-80.441,26.061],[-80.441,26.023]]] },
-  { id: "Zone 10", center: [-80.4660, 26.041], coords: [[[-80.492,26.021],[-80.441,26.021],[-80.441,26.061],[-80.492,26.061],[-80.492,26.021]]] }
+  { id: "Zone 1", center: [-80.2175, 25.990], coords: [[[-80.221,25.958],[-80.214,25.958],[-80.214,26.041],[-80.221,26.041],[-80.221,25.958]]] },
+  { id: "Zone 2", center: [-80.2635, 26.020], coords: [[[-80.306,25.990],[-80.221,25.990],[-80.221,26.041],[-80.306,26.041],[-80.306,25.990]]] },
+  { id: "Zone 3", center: [-80.2635, 25.970], coords: [[[-80.306,25.958],[-80.221,25.958],[-80.221,25.990],[-80.306,25.990],[-80.306,25.958]]] },
+  { id: "Zone 4", center: [-80.2775, 25.990], coords: [[[-80.306,25.958],[-80.249,25.958],[-80.249,26.041],[-80.306,26.041],[-80.306,25.958]]] },
+  { id: "Zone 5", center: [-80.2400, 25.990], coords: [[[-80.249,25.958],[-80.231,25.958],[-80.231,26.041],[-80.249,26.041],[-80.249,25.958]]] },
+  { id: "Zone 6", center: [-80.2195, 25.990], coords: [[[-80.231,25.958],[-80.208,25.958],[-80.208,26.041],[-80.231,26.041],[-80.231,25.958]]] },
+  { id: "Zone 7", center: [-80.1995, 25.990], coords: [[[-80.208,25.958],[-80.191,25.958],[-80.191,26.041],[-80.208,26.041],[-80.208,25.958]]] },
+  { id: "Zone 8", center: [-80.2480, 25.990], coords: [[[-80.305,25.958],[-80.191,25.958],[-80.191,26.041],[-80.305,26.041],[-80.305,25.958]]] },
+  { id: "Zone 9", center: [-80.3730, 26.015], coords: [[[-80.441,26.000],[-80.305,26.000],[-80.305,26.041],[-80.441,26.041],[-80.441,26.000]]] },
+  { id: "Zone 10", center: [-80.4660, 26.015], coords: [[[-80.492,26.000],[-80.441,26.000],[-80.441,26.041],[-80.492,26.041],[-80.492,26.000]]] }
 ];
 
 document.addEventListener("DOMContentLoaded", init);
@@ -120,6 +122,7 @@ function showApp() {
   if (state.user) {
     byId("officerDisplay").textContent = `${state.user.name} | ${state.user.zone}`;
     byId("intelZone").value = state.user.zone;
+    byId("perimeterZone").value = state.user.zone;
   }
 }
 
@@ -145,8 +148,8 @@ function initMap(token) {
   map = new mapboxgl.Map({
     container: "map",
     style: "mapbox://styles/mapbox/dark-v11",
-    center: [-80.305, 26.020],
-    zoom: 11.4,
+    center: miramarCenter,
+    zoom: 11.6,
     pitch: 38,
     bearing: -8,
     maxBounds: cityBounds
@@ -156,7 +159,7 @@ function initMap(token) {
 
   map.on("load", () => {
     drawZones();
-    map.fitBounds(cityBounds, { padding: 20 });
+    map.fitBounds(cityBounds, { padding: 35 });
     refreshMap();
   });
 }
@@ -180,7 +183,7 @@ function drawZones() {
       id: "zone-fill",
       type: "fill",
       source: "zones",
-      paint: { "fill-color": "#0b64c0", "fill-opacity": 0.15 }
+      paint: { "fill-color": "#0b64c0", "fill-opacity": 0.18 }
     });
 
     map.addLayer({
@@ -349,31 +352,39 @@ async function toggleVoiceRecording() {
 }
 
 function generatePerimeter() {
-  if (!map) {
-    alert("Map not ready.");
-    return;
-  }
-
+  const zone = val("perimeterZone");
   const delay = Number(val("perimeterDelay"));
   const direction = val("perimeterDirection");
   const method = val("perimeterMethod");
-  const location = val("perimeterLocation") || "Map center";
+  const location = val("perimeterLocation") || zone;
 
-  const center = map.getCenter();
+  const zoneInfo = zones.find(z => z.id === zone);
+  const baseCenter = zoneInfo ? zoneInfo.center : miramarCenter;
+
   const radius = calculateRadius(delay, method);
-  const points = buildFourPointPerimeter(center.lng, center.lat, radius, direction);
+  const points = buildFourPointPerimeter(baseCenter[0], baseCenter[1], radius, direction);
 
-  state.perimeterPoints = points.map((p, index) => ({
+  const perimeter = {
     id: makeId(),
-    label: `Point ${index + 1}`,
-    lng: p.lng,
-    lat: p.lat,
-    status: "unassigned",
-    unit: ""
-  }));
+    location,
+    zone,
+    delay,
+    direction,
+    method,
+    createdAt: new Date().toISOString(),
+    createdBy: state.user ? state.user.name : "Unknown",
+    points: points.map((p, index) => ({
+      id: makeId(),
+      label: `Point ${index + 1}`,
+      lng: p.lng,
+      lat: p.lat,
+      status: "unassigned",
+      unit: ""
+    }))
+  };
 
-  removeNotificationByPrefix("PERIMETER LOCKED");
-  addNotification(`4-point perimeter generated: ${location}`);
+  state.perimeters.unshift(perimeter);
+  addNotification(`4-point perimeter generated: ${location} | ${zone}`);
 
   saveState();
   renderAll();
@@ -418,17 +429,19 @@ function buildFourPointPerimeter(centerLng, centerLat, radius, direction) {
   });
 }
 
-function setPointStatus(id, status) {
-  const point = state.perimeterPoints.find(p => p.id === id);
+function setPointStatus(perimeterId, pointId, status) {
+  const perimeter = state.perimeters.find(p => p.id === perimeterId);
+  if (!perimeter) return;
+
+  const point = perimeter.points.find(p => p.id === pointId);
   if (!point) return;
 
   point.status = status;
 
-  if (allPointsCovered()) {
-    removeNotificationByPrefix("PERIMETER LOCKED");
-    addNotification("PERIMETER LOCKED: All 4 points covered");
-  } else {
-    removeNotificationByPrefix("PERIMETER LOCKED");
+  removeNotificationByPrefix(`PERIMETER LOCKED: ${perimeter.location}`);
+
+  if (isPerimeterLocked(perimeter)) {
+    addNotification(`PERIMETER LOCKED: ${perimeter.location}`);
   }
 
   saveState();
@@ -437,6 +450,21 @@ function setPointStatus(id, status) {
 }
 
 window.setPointStatus = setPointStatus;
+
+function breakDownPerimeter(perimeterId) {
+  const perimeter = state.perimeters.find(p => p.id === perimeterId);
+  if (!perimeter) return;
+
+  state.perimeters = state.perimeters.filter(p => p.id !== perimeterId);
+  removeNotificationByPrefix(`PERIMETER LOCKED: ${perimeter.location}`);
+  addNotification(`Perimeter broken down: ${perimeter.location}`);
+
+  saveState();
+  renderAll();
+  refreshMap();
+}
+
+window.breakDownPerimeter = breakDownPerimeter;
 
 function refreshMap() {
   if (!map) return;
@@ -452,14 +480,21 @@ function refreshMap() {
       addMapMarker(coord.lng, coord.lat, "shared-marker", `${item.type}: ${item.zone}`);
     });
 
-  state.perimeterPoints.forEach(point => {
-    let statusClass = "perimeter-red";
+  state.perimeters.forEach(perimeter => {
+    perimeter.points.forEach(point => {
+      let statusClass = "perimeter-red";
 
-    if (point.status === "covered") statusClass = "perimeter-green";
-    if (point.status === "enroute") statusClass = "perimeter-yellow";
-    if (allPointsCovered()) statusClass += " flash-alert";
+      if (point.status === "covered") statusClass = "perimeter-green";
+      if (point.status === "enroute") statusClass = "perimeter-yellow";
+      if (isPerimeterLocked(perimeter)) statusClass += " flash-alert";
 
-    addMapMarker(point.lng, point.lat, statusClass, `${point.label}: ${point.status}`);
+      addMapMarker(
+        point.lng,
+        point.lat,
+        statusClass,
+        `${perimeter.location} | ${point.label}: ${point.status}`
+      );
+    });
   });
 }
 
@@ -477,7 +512,7 @@ function addMapMarker(lng, lat, className, popupText) {
 
 function coordsForIntel(item) {
   const zone = zones.find(z => z.id === item.zone);
-  const base = zone ? zone.center : [-80.305, 26.020];
+  const base = zone ? zone.center : miramarCenter;
   const hash = hashText(item.location + item.subject + item.notes);
 
   return {
@@ -493,7 +528,7 @@ function renderAll() {
   renderIntelFeed();
   renderMessages();
   renderOfficers();
-  renderPerimeterPoints();
+  renderPerimeters();
 }
 
 function renderNotificationBar() {
@@ -522,6 +557,11 @@ function renderHomeFeed() {
       title: `${i.type} Intel`,
       body: `${i.zone} | ${i.subject || i.location || i.notes}`,
       meta: `${i.officer} | ${formatDate(i.createdAt)}`
+    })),
+    ...state.perimeters.slice(0, 5).map(p => ({
+      title: "Active Perimeter",
+      body: `${p.location} | ${p.zone}`,
+      meta: `${p.createdBy} | ${formatDate(p.createdAt)}`
     }))
   ].slice(0, 8);
 
@@ -632,36 +672,54 @@ function messageOfficer(name) {
 
 window.messageOfficer = messageOfficer;
 
-function renderPerimeterPoints() {
-  const container = byId("perimeterPoints");
+function renderPerimeters() {
+  const container = byId("activePerimeters");
   if (!container) return;
 
-  if (!state.perimeterPoints.length) {
-    container.innerHTML = `<div class="feed-card">No active perimeter.</div>`;
+  if (!state.perimeters.length) {
+    container.innerHTML = `<div class="feed-card">No active perimeters.</div>`;
     return;
   }
 
-  const locked = allPointsCovered();
+  container.innerHTML = state.perimeters.map(perimeter => {
+    const locked = isPerimeterLocked(perimeter);
 
-  container.innerHTML = `
-    ${locked ? `<div class="locked-banner">PERIMETER LOCKED</div>` : ""}
-    ${state.perimeterPoints.map(p => `
+    return `
       <div class="feed-card">
-        <h4>${escapeHtml(p.label)}</h4>
-        <div class="feed-meta">Status: ${escapeHtml(p.status)}</div>
+        ${locked ? `<div class="locked-banner">PERIMETER LOCKED</div>` : ""}
+        <h4>${escapeHtml(perimeter.location)}</h4>
+        <div class="feed-meta">
+          ${escapeHtml(perimeter.zone)} | ${escapeHtml(perimeter.method)} | ${escapeHtml(String(perimeter.delay))} min
+        </div>
+        <div class="feed-meta">
+          Created by ${escapeHtml(perimeter.createdBy)} | ${formatDate(perimeter.createdAt)}
+        </div>
+
+        ${perimeter.points.map(point => `
+          <div class="feed-card">
+            <h4>${escapeHtml(point.label)}</h4>
+            <div class="feed-meta">Status: ${escapeHtml(point.status)}</div>
+            <div class="feed-actions">
+              <button onclick="setPointStatus('${perimeter.id}', '${point.id}', 'unassigned')">Red</button>
+              <button onclick="setPointStatus('${perimeter.id}', '${point.id}', 'enroute')">Yellow</button>
+              <button onclick="setPointStatus('${perimeter.id}', '${point.id}', 'covered')">Green</button>
+            </div>
+          </div>
+        `).join("")}
+
         <div class="feed-actions">
-          <button onclick="setPointStatus('${p.id}', 'unassigned')">Red</button>
-          <button onclick="setPointStatus('${p.id}', 'enroute')">Yellow</button>
-          <button onclick="setPointStatus('${p.id}', 'covered')">Green</button>
+          <button class="break-btn" onclick="breakDownPerimeter('${perimeter.id}')">Break Down Perimeter</button>
         </div>
       </div>
-    `).join("")}
-  `;
+    `;
+  }).join("");
 }
 
-function allPointsCovered() {
-  return state.perimeterPoints.length === 4 &&
-    state.perimeterPoints.every(p => p.status === "covered");
+function isPerimeterLocked(perimeter) {
+  return perimeter &&
+    Array.isArray(perimeter.points) &&
+    perimeter.points.length === 4 &&
+    perimeter.points.every(p => p.status === "covered");
 }
 
 function addNotification(message) {
@@ -712,6 +770,7 @@ function loadState() {
     state = { ...state, ...loaded };
 
     if (!Array.isArray(state.officers)) state.officers = [];
+    if (!Array.isArray(state.perimeters)) state.perimeters = [];
 
     if (!Array.isArray(state.activeZones) || state.activeZones.length === 0) {
       state.activeZones = [
