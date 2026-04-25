@@ -250,6 +250,10 @@ button:active {
   color: #4fb3ff;
 }
 
+.wide-btn {
+  grid-column: 1 / -1;
+}
+
 .panel {
   background: rgba(7, 13, 28, 0.94);
   border: 1px solid #183966;
@@ -317,16 +321,24 @@ button:active {
   display: flex;
   gap: 8px;
   margin-top: 10px;
+  flex-wrap: wrap;
 }
 
 .feed-actions button {
   padding: 9px;
   font-size: 12px;
+  flex: 1;
+  min-width: 90px;
 }
 
 .delete-btn {
   background: #431116;
   border-color: #922c34;
+}
+
+.break-btn {
+  background: #4c1b1b;
+  border-color: #b33535;
 }
 
 .officer-card {
