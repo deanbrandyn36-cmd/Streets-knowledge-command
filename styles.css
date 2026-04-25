@@ -329,6 +329,24 @@ button:active {
   border-color: #922c34;
 }
 
+.officer-card {
+  cursor: pointer;
+  border-color: #1f5fae;
+}
+
+.officer-card:active {
+  transform: scale(0.98);
+}
+
+.officer-status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background: #1fbd5a;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
 .marker-dot {
   width: 20px;
   height: 20px;
