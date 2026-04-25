@@ -1,9 +1,10 @@
-const STORAGE_KEY = "streetsPatrolModeV3";
+const STORAGE_KEY = "streetsPatrolModeV4";
 
 let state = {
   user: null,
   intel: [],
   messages: [],
+  officers: [],
   perimeterPoints: [],
   notifications: [],
   selectedIntelType: "Vehicle",
@@ -49,10 +50,7 @@ function init() {
       showApp();
       initMap(state.user.token);
     }
-
-    console.log("STREETS app loaded");
   } catch (error) {
-    console.error("Startup error:", error);
     alert("Startup error: " + error.message);
   }
 }
@@ -81,9 +79,7 @@ function bindEvents() {
 
 function safeClick(id, handler) {
   const el = document.getElementById(id);
-  if (el) {
-    el.addEventListener("click", handler);
-  }
+  if (el) el.addEventListener("click", handler);
 }
 
 function login() {
@@ -98,14 +94,8 @@ function login() {
     return;
   }
 
-  state.user = {
-    name,
-    badge,
-    zone,
-    role,
-    token,
-    status: "Active"
-  };
+  state.user = { name, badge, zone, role, token, status: "Active" };
+  upsertOfficer(state.user);
 
   addNotification(`Officer active: ${name} assigned to ${zone}`);
   saveState();
@@ -114,6 +104,8 @@ function login() {
   initMap(token);
   renderAll();
 }
+
+window.login = login;
 
 function logout() {
   state.user = null;
@@ -134,46 +126,39 @@ function showApp() {
 function showView(viewId) {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   byId(viewId).classList.add("active");
-
-  if (map) {
-    setTimeout(() => map.resize(), 100);
-  }
+  if (map) setTimeout(() => map.resize(), 100);
 }
 
 function initMap(token) {
-  try {
-    if (typeof mapboxgl === "undefined") {
-      alert("Mapbox failed to load.");
-      return;
-    }
-
-    mapboxgl.accessToken = token;
-
-    if (map) {
-      map.remove();
-      map = null;
-    }
-
-    map = new mapboxgl.Map({
-      container: "map",
-      style: "mapbox://styles/mapbox/dark-v11",
-      center: [-80.305, 26.020],
-      zoom: 10.7,
-      pitch: 38,
-      bearing: -8,
-      maxBounds: cityBounds
-    });
-
-    map.addControl(new mapboxgl.NavigationControl());
-
-    map.on("load", () => {
-      drawZones();
-      refreshMap();
-    });
-  } catch (error) {
-    console.error(error);
-    alert("Map failed to load. Check your Mapbox token.");
+  if (typeof mapboxgl === "undefined") {
+    alert("Mapbox failed to load.");
+    return;
   }
+
+  mapboxgl.accessToken = token;
+
+  if (map) {
+    map.remove();
+    map = null;
+  }
+
+  map = new mapboxgl.Map({
+    container: "map",
+    style: "mapbox://styles/mapbox/dark-v11",
+    center: [-80.305, 26.020],
+    zoom: 11.4,
+    pitch: 38,
+    bearing: -8,
+    maxBounds: cityBounds
+  });
+
+  map.addControl(new mapboxgl.NavigationControl());
+
+  map.on("load", () => {
+    drawZones();
+    map.fitBounds(cityBounds, { padding: 20 });
+    refreshMap();
+  });
 }
 
 function drawZones() {
@@ -189,29 +174,20 @@ function drawZones() {
   };
 
   if (!map.getSource("zones")) {
-    map.addSource("zones", {
-      type: "geojson",
-      data: featureCollection
-    });
+    map.addSource("zones", { type: "geojson", data: featureCollection });
 
     map.addLayer({
       id: "zone-fill",
       type: "fill",
       source: "zones",
-      paint: {
-        "fill-color": "#0b64c0",
-        "fill-opacity": 0.15
-      }
+      paint: { "fill-color": "#0b64c0", "fill-opacity": 0.15 }
     });
 
     map.addLayer({
       id: "zone-line",
       type: "line",
       source: "zones",
-      paint: {
-        "line-color": "#42a5ff",
-        "line-width": 2
-      }
+      paint: { "line-color": "#42a5ff", "line-width": 2 }
     });
   }
 }
@@ -225,11 +201,7 @@ function renderZoneToggles() {
   zones.forEach(z => {
     const btn = document.createElement("button");
     btn.className = "zone-toggle";
-
-    if (state.activeZones.includes(z.id)) {
-      btn.classList.add("active");
-    }
-
+    if (state.activeZones.includes(z.id)) btn.classList.add("active");
     btn.textContent = z.id.replace("Zone ", "Z");
 
     btn.addEventListener("click", () => {
@@ -277,8 +249,8 @@ function addIntel(shared) {
   };
 
   state.intel.unshift(item);
-
   addNotification(`${shared ? "Shared" : "Personal"} ${item.type} intel added in ${zone}`);
+
   clearIntelForm();
   saveState();
   renderAll();
@@ -290,9 +262,7 @@ function deleteIntel(id) {
   const item = state.intel.find(i => i.id === id);
   state.intel = state.intel.filter(i => i.id !== id);
 
-  if (item) {
-    addNotification(`Intel deleted from ${item.zone}`);
-  }
+  if (item) addNotification(`Intel deleted from ${item.zone}`);
 
   saveState();
   renderAll();
@@ -402,7 +372,9 @@ function generatePerimeter() {
     unit: ""
   }));
 
+  removeNotificationByPrefix("PERIMETER LOCKED");
   addNotification(`4-point perimeter generated: ${location}`);
+
   saveState();
   renderAll();
   refreshMap();
@@ -453,7 +425,10 @@ function setPointStatus(id, status) {
   point.status = status;
 
   if (allPointsCovered()) {
+    removeNotificationByPrefix("PERIMETER LOCKED");
     addNotification("PERIMETER LOCKED: All 4 points covered");
+  } else {
+    removeNotificationByPrefix("PERIMETER LOCKED");
   }
 
   saveState();
@@ -480,17 +455,9 @@ function refreshMap() {
   state.perimeterPoints.forEach(point => {
     let statusClass = "perimeter-red";
 
-    if (point.status === "covered") {
-      statusClass = "perimeter-green";
-    }
-
-    if (point.status === "enroute") {
-      statusClass = "perimeter-yellow";
-    }
-
-    if (allPointsCovered()) {
-      statusClass += " flash-alert";
-    }
+    if (point.status === "covered") statusClass = "perimeter-green";
+    if (point.status === "enroute") statusClass = "perimeter-yellow";
+    if (allPointsCovered()) statusClass += " flash-alert";
 
     addMapMarker(point.lng, point.lat, statusClass, `${point.label}: ${point.status}`);
   });
@@ -525,6 +492,7 @@ function renderAll() {
   renderHomeFeed();
   renderIntelFeed();
   renderMessages();
+  renderOfficers();
   renderPerimeterPoints();
 }
 
@@ -616,6 +584,54 @@ function renderMessages() {
   `).join("");
 }
 
+function upsertOfficer(user) {
+  const existing = state.officers.find(o => o.badge === user.badge);
+
+  if (existing) {
+    existing.name = user.name;
+    existing.badge = user.badge;
+    existing.zone = user.zone;
+    existing.role = user.role;
+    existing.status = "Active";
+    existing.lastSeen = new Date().toISOString();
+  } else {
+    state.officers.unshift({
+      name: user.name,
+      badge: user.badge,
+      zone: user.zone,
+      role: user.role,
+      status: "Active",
+      lastSeen: new Date().toISOString()
+    });
+  }
+}
+
+function renderOfficers() {
+  const container = byId("officerFeed");
+  if (!container) return;
+
+  if (!state.officers.length) {
+    container.innerHTML = `<div class="feed-card">No active officers.</div>`;
+    return;
+  }
+
+  container.innerHTML = state.officers.map(o => `
+    <div class="feed-card officer-card" onclick="messageOfficer('${escapeForClick(o.name)}')">
+      <h4><span class="officer-status-dot"></span>${escapeHtml(o.name)}</h4>
+      <div class="feed-meta">${escapeHtml(o.role)} | ${escapeHtml(o.zone)} | Badge: ${escapeHtml(o.badge)}</div>
+      <div>Status: ${escapeHtml(o.status || "Active")}</div>
+      <div class="feed-meta">Tap to message</div>
+    </div>
+  `).join("");
+}
+
+function messageOfficer(name) {
+  byId("messageTo").value = name;
+  showView("messageView");
+}
+
+window.messageOfficer = messageOfficer;
+
 function renderPerimeterPoints() {
   const container = byId("perimeterPoints");
   if (!container) return;
@@ -658,6 +674,10 @@ function addNotification(message) {
   state.notifications = state.notifications.slice(0, 20);
 }
 
+function removeNotificationByPrefix(prefix) {
+  state.notifications = state.notifications.filter(n => !n.message.startsWith(prefix));
+}
+
 function clearIntelForm() {
   byId("intelLocation").value = "";
   byId("intelSubject").value = "";
@@ -690,6 +710,8 @@ function loadState() {
   try {
     const loaded = JSON.parse(raw);
     state = { ...state, ...loaded };
+
+    if (!Array.isArray(state.officers)) state.officers = [];
 
     if (!Array.isArray(state.activeZones) || state.activeZones.length === 0) {
       state.activeZones = [
@@ -733,4 +755,8 @@ function escapeHtml(str) {
     .split(">").join("&gt;")
     .split('"').join("&quot;")
     .split("'").join("&#039;");
+}
+
+function escapeForClick(str) {
+  return String(str || "").replaceAll("'", "\\'");
 }
